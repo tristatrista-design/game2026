@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>真 AR 掃描｜新勢公園 AI 自然偵探</title>
+<script src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/dist/mindar-image.prod.js"></script>
+<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07110d;color:#fff;
+font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
+#stage{position:fixed;inset:0}
+.overlay{position:fixed;inset:0;z-index:20;pointer-events:none}
+.top{
+  position:absolute;left:14px;right:14px;top:max(14px,env(safe-area-inset-top));
+  display:flex;gap:10px;align-items:flex-start;pointer-events:auto
+}
+.ref{width:86px;height:86px;object-fit:cover;border:2px solid rgba(255,255,255,.85);
+border-radius:15px;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.head{flex:1;background:rgba(5,20,13,.74);backdrop-filter:blur(12px);padding:10px 12px;border-radius:15px}
+.title{font-weight:950;font-size:17px}.sub{font-size:13px;line-height:1.45;opacity:.88;margin-top:3px}
+.bottom{
+  position:absolute;left:14px;right:14px;bottom:max(18px,env(safe-area-inset-bottom));
+  display:grid;gap:8px;pointer-events:auto
+}
+.status{background:rgba(5,20,13,.78);backdrop-filter:blur(12px);border-radius:16px;padding:12px 14px;
+text-align:center;font-weight:850;line-height:1.5;border:1px solid rgba(255,255,255,.15)}
+.btn{border:0;border-radius:15px;padding:14px 16px;font:inherit;font-size:16px;font-weight:950;cursor:pointer}
+.done{background:#59a67d;color:#fff;display:none}.back{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.2)}
+.loading{
+  position:fixed;inset:0;z-index:50;background:linear-gradient(160deg,#0b2118,#092019 55%,#13281d);
+  display:flex;align-items:center;justify-content:center;padding:24px
+}
+.loading.hide{display:none}
+.loadcard{max-width:410px;width:100%;text-align:center;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+border-radius:24px;padding:26px 20px;backdrop-filter:blur(10px)}
+.drop{width:86px;height:86px;margin:0 auto 16px;border-radius:50%;display:grid;place-items:center;
+background:radial-gradient(circle at 35% 28%,#d9fff5,#5adbc7 48%,#2b7f70);font-size:42px;
+box-shadow:0 0 35px rgba(94,231,204,.28)}
+.loader{height:10px;background:rgba(255,255,255,.14);border-radius:999px;overflow:hidden;margin:16px 0 10px}
+.loader i{display:block;height:100%;width:0;background:linear-gradient(90deg,#68e1c8,#f0c96f);transition:.2s}
+.tip{font-size:13px;opacity:.82;line-height:1.6}
+.foundFlash{position:fixed;inset:0;z-index:18;pointer-events:none;box-shadow:inset 0 0 0 0 rgba(103,247,211,0);transition:.3s}
+.foundFlash.on{box-shadow:inset 0 0 90px 20px rgba(103,247,211,.32)}
+a-scene{position:fixed!important;inset:0!important}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+
+<div class="overlay">
+  <div class="top">
+    <img id="ref" class="ref">
+    <div class="head"><div id="title" class="title"></div>
+      <div class="sub">請把手機對準這個現場景物。只有真的辨識到它，AR 圖騰才會出現。</div>
+    </div>
+  </div>
+  <div class="bottom">
+    <div id="status" class="status">正在準備辨識資料…</div>
+    <button id="doneBtn" class="btn done">辨識成功，回到任務</button>
+    <button class="btn back" onclick="history.back()">返回上一頁</button>
+  </div>
+</div>
+<div id="flash" class="foundFlash"></div>
+
+<div id="loading" class="loading">
+  <div class="loadcard">
+    <div class="drop">💧</div>
+    <h2 style="margin:5px 0 8px">正在建立 AR 辨識資料</h2>
+    <p style="line-height:1.65;margin:0">第一次開啟這個景點時，手機會先分析照片特徵。完成後才會真正開始辨識現場。</p>
+    <div class="loader"><i id="loadbar"></i></div>
+    <div id="loadText">準備中… 0%</div>
+    <p class="tip">請保持網路連線。第一次可能需要數秒到數十秒，依手機速度而異。</p>
+  </div>
+</div>
+
+<script>
+const q = new URLSearchParams(location.search);
+const target = q.get('target') || 'demo';
+const ret = q.get('return') || 'index.html';
+
+const CONFIG = {
+ demo: {
+   title:'示範 AR｜彩色裝置',
+   img:'assets/demo_ar.webp',
+   msg:'✨ 辨識成功！彩色水流圖騰被喚醒了。',
+   art:'demo'
+ },
+ water: {
+   title:'正式 AR｜水質淨化區',
+   img:'assets/ar_water.webp',
+   msg:'💧 辨識成功！水滴守護者與魚形水紋出現了。',
+   art:'water'
+ },
+ river: {
+   title:'正式 AR｜老街溪河川教育中心',
+   img:'assets/ar_river.webp',
+   msg:'🌊 辨識成功！老街溪的水滴河紋甦醒了。',
+   art:'river'
+ }
+};
+const C = CONFIG[target] || CONFIG.demo;
+document.getElementById('ref').src = C.img;
+document.getElementById('title').textContent = C.title;
+
+function loadImage(src){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    img.crossOrigin='anonymous';
+    img.onload=()=>resolve(img);
+    img.onerror=reject;
+    img.src=src;
+  });
+}
+
+function svgData(kind){
+ const demo=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+ <defs><radialGradient id="bg"><stop stop-color="#fff8d0" stop-opacity=".96"/><stop offset="1" stop-color="#68ddcc" stop-opacity=".08"/></radialGradient>
+ <linearGradient id="g" x1="0" x2="1"><stop stop-color="#ff726a"/><stop offset=".48" stop-color="#59b9ef"/><stop offset="1" stop-color="#83dd76"/></linearGradient></defs>
+ <circle cx="256" cy="256" r="205" fill="url(#bg)" stroke="#dffdf5" stroke-width="5"/>
+ <circle cx="256" cy="256" r="175" fill="none" stroke="#6be5d0" stroke-width="5" stroke-dasharray="18 14"/>
+ <path d="M92 278 C141 181 221 149 279 173 C336 197 354 235 421 254 C356 270 337 317 291 348 C211 401 123 356 92 278Z" fill="url(#g)" opacity=".94"/>
+ <circle cx="222" cy="247" r="17" fill="#fff"/><circle cx="324" cy="241" r="17" fill="#fff"/>
+ <path d="M213 301 Q272 350 337 291" stroke="#fff" stroke-width="16" fill="none" stroke-linecap="round"/>
+ </svg>`;
+ const water=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+ <defs><linearGradient id="d" x1="0" x2="1"><stop stop-color="#66e8df"/><stop offset="1" stop-color="#6aa8ff"/></linearGradient>
+ <linearGradient id="f"><stop stop-color="#ffe8a0"/><stop offset="1" stop-color="#8aead0"/></linearGradient></defs>
+ <circle cx="256" cy="256" r="205" fill="#0c5a57" fill-opacity=".20" stroke="#9ff7e1" stroke-width="5"/>
+ <circle cx="256" cy="256" r="174" fill="none" stroke="#f6d57d" stroke-width="5" stroke-dasharray="12 15"/>
+ <path d="M256 78 C323 155 351 206 351 271 C351 342 309 391 256 430 C203 391 161 342 161 271 C161 206 189 155 256 78Z" fill="url(#d)" opacity=".93"/>
+ <path d="M111 308 C173 251 244 256 306 293 C350 319 377 349 407 394 C349 366 303 356 251 359 C199 362 153 379 91 412 C102 371 102 337 111 308Z" fill="url(#f)" opacity=".98"/>
+ <circle cx="291" cy="309" r="10" fill="#173e44"/>
+ <path d="M311 286 C355 260 389 243 417 213 C402 261 378 292 341 313Z" fill="url(#f)"/>
+ </svg>`;
+ const river=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+ <defs><linearGradient id="r" x1="0" x2="1"><stop stop-color="#62e3cb"/><stop offset="1" stop-color="#f0c96e"/></linearGradient>
+ <linearGradient id="b" x1="0" x2="1"><stop stop-color="#7ae4ff"/><stop offset="1" stop-color="#568cfa"/></linearGradient></defs>
+ <circle cx="256" cy="256" r="205" fill="#064f4b" fill-opacity=".18" stroke="#a5fae7" stroke-width="5"/>
+ <path d="M105 315 C164 256 238 260 302 299 C351 329 383 363 411 414 C348 381 300 369 247 373 C195 376 148 392 89 427 C95 382 97 342 105 315Z" fill="url(#r)"/>
+ <path d="M258 95 C310 157 333 199 333 249 C333 305 299 344 258 375 C217 344 183 305 183 249 C183 199 206 157 258 95Z" fill="url(#b)" opacity=".94"/>
+ <path d="M99 427 C187 453 314 449 414 407" fill="none" stroke="#fff" stroke-width="14" stroke-linecap="round" opacity=".82"/>
+ </svg>`;
+ return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(kind==='water'?water:kind==='river'?river:demo);
+}
+
+async function compileTarget(){
+  try{
+    const img = await loadImage(C.img);
+    const CompilerClass = window.MINDAR?.IMAGE?.Compiler;
+    if(!CompilerClass) throw new Error('找不到 MindAR Compiler');
+    const compiler = new CompilerClass();
+    document.getElementById('loadText').textContent='開始分析照片…';
+    await compiler.compileImageTargets([img], (progress)=>{
+      const p=Math.max(0,Math.min(100,Math.round(progress)));
+      document.getElementById('loadbar').style.width=p+'%';
+      document.getElementById('loadText').textContent='建立辨識資料… '+p+'%';
+    });
+    const buffer = await compiler.exportData();
+    const blobUrl = URL.createObjectURL(new Blob([buffer], {type:'application/octet-stream'}));
+    return blobUrl;
+  }catch(err){
+    console.error(err);
+    document.getElementById('loadText').textContent='AR 準備失敗：'+err.message;
+    throw err;
+  }
+}
+
+function buildScene(mindUrl){
+  const stage=document.getElementById('stage');
+  const scene=document.createElement('a-scene');
+  scene.setAttribute('mindar-image', `imageTargetSrc: ${mindUrl}; autoStart: true; uiLoading: no; uiScanning: yes; uiError: yes;`);
+  scene.setAttribute('color-space','sRGB');
+  scene.setAttribute('renderer','colorManagement: true; physicallyCorrectLights: true; alpha: true');
+  scene.setAttribute('vr-mode-ui','enabled: false');
+  scene.setAttribute('device-orientation-permission-ui','enabled: false');
+  scene.setAttribute('embedded','');
+
+  const assets=document.createElement('a-assets');
+  const art=document.createElement('img');
+  art.id='arArtwork';
+  art.src=svgData(C.art);
+  assets.appendChild(art);
+  scene.appendChild(assets);
+
+  const cam=document.createElement('a-camera');
+  cam.setAttribute('position','0 0 0');
+  cam.setAttribute('look-controls','enabled: false');
+  scene.appendChild(cam);
+
+  const anchor=document.createElement('a-entity');
+  anchor.id='anchor';
+  anchor.setAttribute('mindar-image-target','targetIndex: 0');
+
+  const ring=document.createElement('a-ring');
+  ring.setAttribute('color','#9ff7e2');
+  ring.setAttribute('radius-inner','0.40');
+  ring.setAttribute('radius-outer','0.43');
+  ring.setAttribute('position','0 0 0.02');
+  ring.setAttribute('rotation','0 0 0');
+  ring.setAttribute('material','opacity: 0.78; transparent: true');
+  ring.setAttribute('animation','property: rotation; to: 0 0 360; loop: true; dur: 9000; easing: linear');
+  anchor.appendChild(ring);
+
+  const image=document.createElement('a-image');
+  image.setAttribute('src','#arArtwork');
+  image.setAttribute('position','0 0 0.06');
+  image.setAttribute('width','0.92');
+  image.setAttribute('height','0.92');
+  image.setAttribute('material','transparent: true; alphaTest: 0.05');
+  image.setAttribute('animation','property: scale; from: 0.86 0.86 0.86; to: 1 1 1; dir: alternate; loop: true; dur: 1700; easing: easeInOutSine');
+  anchor.appendChild(image);
+
+  scene.appendChild(anchor);
+  stage.appendChild(scene);
+
+  let foundOnce=false;
+  anchor.addEventListener('targetFound',()=>{
+    foundOnce=true;
+    document.getElementById('flash').classList.add('on');
+    setTimeout(()=>document.getElementById('flash').classList.remove('on'),650);
+    document.getElementById('status').textContent=C.msg;
+    document.getElementById('doneBtn').style.display='block';
+    localStorage.setItem('xinshi_ar_'+target,'done');
+  });
+  anchor.addEventListener('targetLost',()=>{
+    if(foundOnce) document.getElementById('status').textContent='✅ 已經辨識成功。你可以回到任務繼續闖關。';
+    else document.getElementById('status').textContent='還沒辨識到，請慢慢移動手機，讓景物完整進入畫面。';
+  });
+
+  scene.addEventListener('arReady',()=>{
+    document.getElementById('loading').classList.add('hide');
+    document.getElementById('status').textContent='AR 已就緒，請對準指定景點。';
+  });
+  scene.addEventListener('arError',(e)=>{
+    console.error(e);
+    document.getElementById('status').textContent='相機或 AR 啟動失敗，請確認已允許相機權限。';
+  });
+}
+
+document.getElementById('doneBtn').onclick=()=>location.href=decodeURIComponent(ret);
+
+(async()=>{
+  try{
+    const mindUrl=await compileTarget();
+    document.getElementById('loadbar').style.width='100%';
+    document.getElementById('loadText').textContent='辨識資料完成，正在開啟相機…';
+    buildScene(mindUrl);
+  }catch(e){}
+})();
+</script>
+</body>
+</html>

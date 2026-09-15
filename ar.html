@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-Hant"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>AR 掃描｜新勢公園 AI 自然偵探</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#08110d;color:#fff;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
+#cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;background:#101713}
+.shade{position:fixed;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.48),transparent 25%,transparent 68%,rgba(0,0,0,.68));pointer-events:none}
+.ui{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:space-between;padding:max(18px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom));z-index:10}
+.top{display:flex;gap:10px;align-items:flex-start}.ref{width:90px;height:90px;object-fit:cover;border-radius:15px;border:2px solid rgba(255,255,255,.8);box-shadow:0 8px 20px #0008}
+.head{background:rgba(8,17,13,.72);backdrop-filter:blur(10px);padding:10px 12px;border-radius:14px;flex:1}
+.title{font-weight:950;font-size:18px}.hint{font-size:13px;line-height:1.55;opacity:.9;margin-top:3px}
+.frame{position:absolute;left:50%;top:48%;width:min(76vw,390px);height:min(52vh,460px);transform:translate(-50%,-50%);border-radius:28px;border:2px solid rgba(255,255,255,.85);box-shadow:0 0 0 9999px rgba(0,0,0,.06)}
+.frame:before,.frame:after{content:"";position:absolute;width:64px;height:64px;border:4px solid #9df1d6}
+.frame:before{left:-4px;top:-4px;border-right:0;border-bottom:0;border-radius:26px 0 0 0}.frame:after{right:-4px;bottom:-4px;border-left:0;border-top:0;border-radius:0 0 26px 0}
+.scanline{position:absolute;left:6%;right:6%;height:3px;top:12%;background:#a2ffe0;box-shadow:0 0 18px #a2ffe0;display:none}
+.scanning .scanline{display:block;animation:scan 1.5s linear infinite}@keyframes scan{0%{top:12%}50%{top:86%}100%{top:12%}}
+.bottom{display:grid;gap:10px}.btn{border:0;border-radius:16px;padding:15px 18px;font:inherit;font-weight:950;font-size:17px}.go{background:#e5b958;color:#3b2d08}.done{background:#57a37a;color:white;display:none}.back{background:rgba(255,255,255,.16);color:white;border:1px solid rgba(255,255,255,.25)}
+#arArt{position:fixed;left:50%;top:47%;width:min(70vw,360px);height:min(70vw,360px);transform:translate(-50%,-50%) scale(.55);opacity:0;z-index:8;pointer-events:none;transition:.7s}
+#arArt.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.ring{position:absolute;inset:7%;border-radius:50%;border:2px solid rgba(127,242,218,.62);box-shadow:0 0 28px rgba(104,237,210,.45);animation:spin 12s linear infinite}
+.ring.r2{inset:19%;border-color:rgba(255,218,126,.7);animation-direction:reverse;animation-duration:9s}
+@keyframes spin{to{transform:rotate(360deg)}}
+.core{position:absolute;inset:25%;display:grid;place-items:center;filter:drop-shadow(0 0 20px rgba(114,240,218,.65))}
+.bubble{position:fixed;left:16px;right:16px;bottom:150px;background:rgba(255,255,255,.94);color:#173025;padding:14px 16px;border-radius:16px;z-index:12;font-weight:850;line-height:1.55;display:none}
+.bubble.show{display:block}
+.dot{position:absolute;border-radius:50%;background:#d9fff4;box-shadow:0 0 10px #c6fff0;animation:float 2.8s ease-in-out infinite}.d1{width:10px;height:10px;left:15%;top:42%}.d2{width:15px;height:15px;right:12%;top:25%;animation-delay:.4s}.d3{width:8px;height:8px;right:20%;bottom:19%;animation-delay:.9s}@keyframes float{50%{transform:translateY(-12px);opacity:.6}}
+</style></head><body>
+<video id="cam" autoplay playsinline muted></video><div class="shade"></div>
+<div id="arArt"><div class="ring"></div><div class="ring r2"></div><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><div class="core" id="core"></div></div>
+<div class="bubble" id="bubble"></div>
+<div class="ui">
+ <div class="top"><img class="ref" id="ref"><div class="head"><div class="title" id="title"></div><div class="hint">把手機對準照片中的現場地標，盡量讓它落在掃描框中央。</div></div></div>
+ <div class="frame" id="frame"><div class="scanline"></div></div>
+ <div class="bottom">
+  <button class="btn go" id="scanBtn">開始掃描</button>
+  <button class="btn done" id="doneBtn">完成，回到任務</button>
+  <button class="btn back" onclick="history.back()">返回</button>
+ </div>
+</div>
+<script>
+const q=new URLSearchParams(location.search), target=q.get('target')||'demo', ret=q.get('return')||'index.html';
+const C={
+ demo:{title:'示範 AR｜彩色裝置',img:'assets/demo_ar.webp',msg:'✨ 彩色水流被啟動了！這是示範題，正式關卡會出現不同的 AR 圖騰。',kind:'demo'},
+ water:{title:'正式 AR｜水質淨化區',img:'assets/ar_water.webp',msg:'💧 水滴守護者啟動！請記住最後浮出的「魚形水紋」。',kind:'water'},
+ river:{title:'正式 AR｜老街溪河川教育中心',img:'assets/ar_river.webp',msg:'🌊 老街溪光紋甦醒！請記住最後浮出的「水滴河紋」。',kind:'river'}
+}[target];
+document.getElementById('title').textContent=C.title; document.getElementById('ref').src=C.img;
+const core=document.getElementById('core');
+function art(kind){
+ if(kind==='demo') return `<svg viewBox="0 0 200 200"><defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#ff786e"/><stop offset=".5" stop-color="#65bfee"/><stop offset="1" stop-color="#91df72"/></linearGradient></defs><path d="M32 106 C55 67 88 49 111 56 C136 63 146 83 169 93 C144 98 136 112 119 127 C91 151 55 144 32 106Z" fill="url(#g)" opacity=".94"/><circle cx="79" cy="94" r="8" fill="#fff"/><circle cx="126" cy="91" r="8" fill="#fff"/><path d="M76 120 Q102 140 130 116" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round"/></svg>`;
+ if(kind==='water') return `<svg viewBox="0 0 200 200"><defs><linearGradient id="g2" x1="0" x2="1"><stop stop-color="#62e0dc"/><stop offset="1" stop-color="#7db8ff"/></linearGradient></defs><path d="M100 24 C128 58 142 77 142 105 C142 135 123 156 100 174 C77 156 58 135 58 105 C58 77 72 58 100 24Z" fill="url(#g2)"/><path d="M52 119 C76 97 102 99 125 113 C139 122 150 132 161 149 C139 138 120 134 99 135 C81 136 64 141 40 153 C44 139 46 130 52 119Z" fill="#f6e7a4" opacity=".95"/><circle cx="119" cy="119" r="4" fill="#173c42"/><path d="M124 111 C143 103 153 96 163 87 C158 103 151 114 137 122" fill="#f6e7a4"/></svg>`;
+ return `<svg viewBox="0 0 200 200"><defs><linearGradient id="gr" x1="0" x2="1"><stop stop-color="#65e2cc"/><stop offset="1" stop-color="#f1cf76"/></linearGradient></defs><path d="M45 116 C69 92 99 94 125 109 C140 118 153 132 163 150 C141 139 119 134 98 135 C77 136 58 143 36 155 C39 138 42 125 45 116Z" fill="url(#gr)"/><path d="M101 40 C122 65 132 79 132 99 C132 121 118 136 101 149 C84 136 70 121 70 99 C70 79 80 65 101 40Z" fill="#7dd9ff" opacity=".9"/><path d="M45 157 C76 166 121 165 158 149" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round" opacity=".75"/></svg>`;
+}
+core.innerHTML=art(C.kind);
+async function startCam(){
+ try{
+   const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+   document.getElementById('cam').srcObject=s;
+ }catch(e){
+   document.getElementById('bubble').textContent='無法開啟相機。請確認瀏覽器已允許相機權限。';
+   document.getElementById('bubble').classList.add('show');
+ }
+}
+startCam();
+document.getElementById('scanBtn').onclick=()=>{
+ const frame=document.getElementById('frame'); frame.classList.add('scanning');
+ document.getElementById('scanBtn').disabled=true; document.getElementById('scanBtn').textContent='掃描中…請保持穩定';
+ setTimeout(()=>{
+   frame.classList.remove('scanning'); document.getElementById('arArt').classList.add('show');
+   const b=document.getElementById('bubble'); b.textContent=C.msg; b.classList.add('show');
+   document.getElementById('scanBtn').style.display='none'; document.getElementById('doneBtn').style.display='block';
+   localStorage.setItem('xinshi_ar_'+target,'done');
+ },2600);
+};
+document.getElementById('doneBtn').onclick=()=>location.href=decodeURIComponent(ret);
+</script></body></html>

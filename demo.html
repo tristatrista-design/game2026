@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-Hant"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>示範題｜新勢公園 AI 自然偵探</title><link rel="stylesheet" href="style.css">
+</head><body><div class="shell">
+<header class="topbar"><div class="topline"><div class="brand">👩‍🏫 老師示範題</div><div class="pill" id="demoStep">開始</div></div>
+<div class="progress"><i id="demoBar"></i></div></header>
+
+<section class="card" id="d0">
+ <div class="hero" style="background-image:url('assets/demo_ar.webp')"><div class="heroText">
+ <span class="badge">不計分・不洩題</span><h1>先學會<br>兩種玩法</h1>
+ <p>集合點旁完成，正式出發就不容易卡住。</p></div></div>
+ <div class="pad">
+   <div class="grid2"><div class="infoTile">🎨 AR 掃描</div><div class="infoTile">🌺 AI 植物辨識</div></div>
+   <div class="notice">示範素材和正式四關完全不同。老師帶著大家操作一次就好。</div>
+   <button class="btn primary block" onclick="goDemo(1)">開始 AR 示範</button>
+ </div>
+</section>
+
+<section class="card" id="d1" hidden><div class="pad">
+ <span class="badge">示範 A｜AR</span><h2>找到集合點旁的彩色裝置</h2>
+ <img class="photo portrait" src="assets/demo_ar.webp" alt="彩色裝置">
+ <p>找到照片裡的紅、藍、綠裝置後，開啟 AR 體驗。</p>
+ <a class="btn gold block" href="ar_true.html?target=demo&return=demo.html%3Fstep%3D2">📱 開啟 AR 示範</a>
+ <p class="small">AR 頁面會使用相機，請允許相機權限。</p>
+</div></section>
+
+<section class="card" id="d2" hidden><div class="pad">
+ <span class="badge">示範 B｜AI 植物辨識</span><h2>找到集合點旁的扶桑花</h2>
+ <img class="photo portrait" src="assets/demo_plant.webp" alt="扶桑花">
+ <div class="step"><div class="stepNo">1</div><div><b>找到同一株植物</b><br>先觀察花和葉子的形狀。</div></div>
+ <div class="step"><div class="stepNo">2</div><div><b>拍一張「花＋葉」都清楚的照片</b></div></div>
+ <div class="step"><div class="stepNo">3</div><div><b>把照片傳給 AI</b><br>問：「請問這是什麼植物？」</div></div>
+ <div class="notice">AI 回答後，再回到這裡選答案。</div>
+ <button class="choice" onclick="demoPlant(false,this)">A. 杜鵑</button>
+ <button class="choice" onclick="demoPlant(true,this)">B. 扶桑（朱槿）</button>
+ <button class="choice" onclick="demoPlant(false,this)">C. 馬纓丹</button>
+ <div id="demoFeedback" class="feedback"></div>
+ <button id="demoDone" class="btn primary block" style="display:none;margin-top:12px" onclick="goDemo(3)">完成示範</button>
+</div></section>
+
+<section class="card" id="d3" hidden><div class="pad" style="text-align:center">
+ <span class="badge">示範完成</span><h2>🎉 正式闖關可以出發了</h2>
+ <div class="notice"><b>AR：</b>找地標 → 開相機 → 對準 → 看虛擬圖案<br><br><b>植物：</b>找植物 → 拍照 → 問 AI → 回網站作答</div>
+ <a class="btn primary block" href="game.html">進入正式闖關</a>
+ <a class="btn secondary block" style="margin-top:10px" href="index.html">回首頁</a>
+</div></section>
+</div>
+<script>
+function goDemo(n){ history.replaceState(null,'','demo.html?step='+n); renderDemo(); }
+function renderDemo(){
+ const p=new URLSearchParams(location.search); const n=Number(p.get('step')||0);
+ for(let i=0;i<4;i++) document.getElementById('d'+i).hidden=i!==n;
+ document.getElementById('demoStep').textContent=n===0?'開始':(n===3?'完成':'示範 '+n+'/2');
+ document.getElementById('demoBar').style.width=(n===0?0:n===1?45:n===2?75:100)+'%';
+ window.scrollTo(0,0);
+}
+function demoPlant(ok,el){
+ document.querySelectorAll('#d2 .choice').forEach(x=>x.classList.remove('correct','wrong'));
+ const f=document.getElementById('demoFeedback'); f.className='feedback show '+(ok?'ok':'no');
+ if(ok){el.classList.add('correct'); f.textContent='✅ 正確！這就是正式植物題的操作流程。'; document.getElementById('demoDone').style.display='flex';}
+ else {el.classList.add('wrong'); f.textContent='再看看花的形狀。這是示範題，可以再試一次。';}
+}
+renderDemo();
+</script></body></html>
