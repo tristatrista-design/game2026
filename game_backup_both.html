@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-Hant"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>備用版（雙植物都替換）｜新勢公園 AI 自然偵探</title><link rel="stylesheet" href="style.css">
+</head><body><div class="shell">
+<header class="topbar"><div class="topline"><div class="brand">🧭 備用版（雙植物都替換）</div><div class="pill" id="routePill">尚未分流</div></div>
+<div class="progress"><i id="gameBar"></i></div></header>
+
+<section id="setup" class="card"><div class="pad">
+ <span class="badge">正式遊戲開始</span><h1 style="font-size:40px">輸入你的編號</h1>
+ <p>老師先替每組／每位學員分配一個編號。系統會依編號平均分到 4 條路線，避免大家全部擠在同一關。</p>
+ <input class="input" id="groupNo" inputmode="numeric" placeholder="例如：7">
+ <button class="btn primary block" style="margin-top:12px" onclick="startGame()">開始我的路線</button>
+ <button class="btn secondary block" style="margin-top:10px" onclick="randomStart()">沒有編號，隨機分流</button>
+ <div class="notice small">此版本同時替換兩個植物題：黃色小花灌木＋紅色朱槿；同一支手機會記住此版本的進度。</div>
+</div></section>
+
+<section id="game" hidden>
+ <div class="card"><div class="pad">
+   <div class="taskHead"><div><span class="badge" id="taskType"></span><h2 id="taskTitle"></h2></div><div class="routeBadge" id="taskCount"></div></div>
+   <div id="taskBody"></div>
+ </div></div>
+ <div class="card"><div class="pad">
+   <h3>我的四站路線</h3><div class="routeList" id="routeList"></div>
+   <button class="btn danger block" onclick="resetGame()">老師協助：重新開始</button>
+ </div></div>
+</section>
+
+<section id="finish" class="card" hidden><div class="pad" style="text-align:center">
+ <span class="badge">MISSION COMPLETE</span><h1 style="font-size:42px">🎉 四關完成！</h1>
+ <p class="lead">你們用 AR 看見虛擬線索，也用 AI 認識真實植物。</p>
+ <div class="resultGrid"><div>💧</div><div>🌼</div><div>🌊</div><div>🌿</div></div>
+ <div class="notice"><b>今天真正重要的技能：</b><br>AI 可以幫忙辨識，但「觀察」還是要留在人類手上。</div>
+ <a class="btn secondary block" href="index.html">回活動首頁</a>
+ </div></section>
+</div>
+
+<script>
+const STORAGE_KEY = 'xinshi_game_backup_both';
+const TASKS={
+ water:{name:'水滴守護者',type:'AR 關卡',icon:'💧'},
+ yellow:{name:'黃色小花灌木',type:'AI 植物辨識',icon:'🌼'},
+ river:{name:'老街溪河川教育中心',type:'AR 關卡',icon:'🌊'},
+ white:{name:'紅色朱槿',type:'AI 植物辨識',icon:'🌿'}
+};
+const ROUTES=[
+ ['water','yellow','river','white'],
+ ['yellow','river','white','water'],
+ ['river','white','water','yellow'],
+ ['white','water','yellow','river']
+];
+let state=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
+
+function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}
+function startGame(){
+ const n=Number(document.getElementById('groupNo').value);
+ if(!Number.isInteger(n)||n<1||n>99){alert('請輸入 1～99 的編號');return}
+ state={no:n,route:(n-1)%4,idx:0,completed:[]}; save(); render();
+}
+function randomStart(){const r=Math.floor(Math.random()*4);state={no:'R',route:r,idx:0,completed:[]};save();render()}
+function resetGame(){
+ const p=prompt('請輸入老師密碼');
+ if(p!=='0910'){if(p!==null) alert('密碼不正確');return}
+ localStorage.removeItem(STORAGE_KEY);
+ ['water','river'].forEach(x=>localStorage.removeItem('xinshi_ar_'+x));
+ state=null; location.reload();
+}
+function nextTask(){
+ const key=ROUTES[state.route][state.idx];
+ if(!state.completed.includes(key)) state.completed.push(key);
+ state.idx++; save(); render(); window.scrollTo(0,0);
+}
+function choosePlant(correct,el,fbid,nextid){
+ document.querySelectorAll('.plantChoice').forEach(x=>x.classList.remove('correct','wrong'));
+ const f=document.getElementById(fbid); f.className='feedback show '+(correct?'ok':'no');
+ if(correct){el.classList.add('correct');f.textContent='✅ 正確！這一站完成。';document.getElementById(nextid).style.display='flex'}
+ else{el.classList.add('wrong');f.textContent='還不對。可以再看一次現場植物，或把照片重新交給 AI 辨識。'}
+}
+
+function yellowBody(){
+ return `<img class="photo portrait" src="assets/backup_yellow.webp" alt="黃色小花灌木">
+ <p><b>任務：</b>找到照片中的植物，拍下「黃色花＋葉子」，再把照片交給 AI。</p>
+ <div class="notice">可以問 AI：<br><b>「請辨識這是什麼植物？請根據花朵與葉形判斷。」</b></div>
+ <p>AI 辨識後，回來選答案：</p>
+ <button class="choice plantChoice" onclick="choosePlant(true,this,'yf','yn')">A. 馬纓丹</button>
+ <button class="choice plantChoice" onclick="choosePlant(false,this,'yf','yn')">B. 仙丹花</button>
+ <button class="choice plantChoice" onclick="choosePlant(false,this,'yf','yn')">C. 金露花</button>
+ <div id="yf" class="feedback"></div><button id="yn" class="btn primary block" style="display:none;margin-top:12px" onclick="nextTask()">完成，前往下一站</button>`;
+}
+
+
+function whiteBody(){
+ return `<img class="photo portrait" src="assets/backup_red.webp" alt="紅色朱槿">
+ <p><b>任務：</b>找到照片中的植物，拍下「紅花＋葉子」，交給 AI 辨識。</p>
+ <div class="notice">可以問 AI：<br><b>「請辨識這是什麼植物？請根據花朵與葉形判斷。」</b></div>
+ <p>AI 辨識後，回來選答案：</p>
+ <button class="choice plantChoice" onclick="choosePlant(true,this,'wf','wn')">A. 朱槿</button>
+ <button class="choice plantChoice" onclick="choosePlant(false,this,'wf','wn')">B. 扶桑菊</button>
+ <button class="choice plantChoice" onclick="choosePlant(false,this,'wf','wn')">C. 九重葛</button>
+ <div id="wf" class="feedback"></div>
+ <button id="wn" class="btn primary block" style="display:none;margin-top:12px" onclick="nextTask()">完成，前往下一站</button>`;
+}
+
+function arBody(key){
+ const info=key==='water'
+ ? {img:'assets/ar_water.webp',desc:'找到水質淨化區的水滴角色裝置。',target:'water'}
+ : {img:'assets/ar_river.webp',desc:'找到「老街溪 河川教育中心」招牌。',target:'river'};
+ const done=localStorage.getItem('xinshi_ar_'+info.target)==='done';
+ return `<img class="photo portrait" src="${info.img}">
+ <p><b>任務：</b>${info.desc}</p>
+ <div class="notice">到現場後開啟相機，將地標放進掃描框中央，看看會浮出什麼河川圖騰。</div>
+ <a class="btn gold block" href="ar_true.html?target=${info.target}&return=game_backup_both.html">📱 開啟 AR 掃描</a>
+ ${done?`<div class="feedback show ok">✅ AR 已完成，可以前往下一站。</div><button class="btn primary block" style="margin-top:12px" onclick="nextTask()">完成，前往下一站</button>`:`<p class="small">掃描完成後會自動記錄。回到這頁即可繼續。</p>`}`;
+}
+function render(){
+ const setup=document.getElementById('setup'), game=document.getElementById('game'), finish=document.getElementById('finish');
+ if(!state){setup.hidden=false;game.hidden=true;finish.hidden=true;return}
+ setup.hidden=true;
+ document.getElementById('routePill').textContent='路線 '+String.fromCharCode(65+state.route);
+ if(state.idx>=4){game.hidden=true;finish.hidden=false;document.getElementById('gameBar').style.width='100%';return}
+ finish.hidden=true;game.hidden=false;
+ const route=ROUTES[state.route], key=route[state.idx], t=TASKS[key];
+ document.getElementById('taskType').textContent=t.type;
+ document.getElementById('taskTitle').textContent=t.icon+' '+t.name;
+ document.getElementById('taskCount').textContent=`第 ${state.idx+1} / 4 站`;
+ document.getElementById('gameBar').style.width=(state.idx/4*100)+'%';
+ document.getElementById('taskBody').innerHTML=key==='yellow'?yellowBody():key==='white'?whiteBody():arBody(key);
+ document.getElementById('routeList').innerHTML=route.map((k,i)=>`<div class="routeItem ${i<state.idx?'done':i===state.idx?'current':''}"><div class="routeDot">${i+1}</div><div>${TASKS[k].icon} ${TASKS[k].name}</div></div>`).join('');
+}
+render();
+</script></body></html>
